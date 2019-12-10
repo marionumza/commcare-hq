@@ -32,46 +32,54 @@ class AutoEscalationTest(BaseCaseRuleTest):
     def todays_date_as_str(self):
         return todays_date(datetime.utcnow()).strftime('%Y-%m-%d')
 
-    def _test_auto_escalation(self, from_level, to_level):
+    def _test_auto_escalation_with_tech_issue(self, from_level, to_level, tech_issue):
         rule = create_empty_rule(self.domain, AutomaticUpdateRule.WORKFLOW_CASE_UPDATE)
         rule.add_action(CustomActionDefinition, name='ICDS_ESCALATE_TECH_ISSUE')
 
-        with create_case(
-            self.domain,
-            'tech_issue',
-            case_name='New Issue',
-            update={
-                'ticket_level': from_level,
-                'touch_case_date': '2017-06-01',
-                'block_location_id': 'block_id',
-                'district_location_id': 'district_id',
-                'state_location_id': 'state_id',
-            },
-        ) as tech_issue:
-            properties = tech_issue.to_json()
-            self.assertEqual(properties.get('ticket_level'), from_level)
-            self.assertEqual(properties.get('touch_case_date'), '2017-06-01')
-            self.assertIsNone(properties.get('change_in_level'))
+        properties = tech_issue.to_json()
+        self.assertEqual(properties.get('ticket_level'), from_level)
+        self.assertEqual(properties.get('touch_case_date'), '2017-06-01')
+        self.assertIsNone(properties.get('change_in_level'))
 
-            result = rule.run_actions_when_case_matches(tech_issue)
-            self.assertEqual(result.num_updates, 1)
-            self.assertEqual(result.num_creates, 1)
+        result = rule.run_actions_when_case_matches(tech_issue)
+        self.assertEqual(result.num_updates, 1)
+        self.assertEqual(result.num_creates, 1)
 
-            tech_issue = CaseAccessors(self.domain).get_case(tech_issue.case_id)
-            properties = tech_issue.to_json()
-            self.assertEqual(properties.get('ticket_level'), to_level)
-            self.assertEqual(properties.get('touch_case_date'), self.todays_date_as_str)
-            self.assertEqual(properties.get('change_in_level'), '1')
+        tech_issue = CaseAccessors(self.domain).get_case(tech_issue.case_id)
+        properties = tech_issue.to_json()
+        self.assertEqual(properties.get('ticket_level'), to_level)
+        self.assertEqual(properties.get('touch_case_date'), self.todays_date_as_str)
+        self.assertEqual(properties.get('change_in_level'), '1')
 
-            subcases = tech_issue.get_subcases(index_identifier='parent')
-            self.assertEqual(len(subcases), 1)
-            [tech_issue_delegate] = subcases
+        subcases = tech_issue.get_subcases(index_identifier='parent')
+        self.assertEqual(len(subcases), 1)
+        [tech_issue_delegate] = subcases
 
-            self.assertEqual(tech_issue_delegate.type, 'tech_issue_delegate')
-            self.assertEqual(tech_issue_delegate.name, tech_issue.name)
-            self.assertEqual(tech_issue_delegate.owner_id,
-                tech_issue.get_case_property('%s_location_id' % to_level))
-            self.assertEqual(tech_issue_delegate.get_case_property('change_in_level'), '1')
+        self.assertEqual(tech_issue_delegate.type, 'tech_issue_delegate')
+        self.assertEqual(tech_issue_delegate.name, tech_issue.name)
+        self.assertEqual(tech_issue_delegate.owner_id,
+            tech_issue.get_case_property('%s_location_id' % to_level))
+        self.assertEqual(tech_issue_delegate.get_case_property('change_in_level'), '1')
+
+        return tech_issue
+
+    def _test_auto_escalation(self, from_level, to_level, tech_issue=None):
+        if tech_issue:
+            return self._test_auto_escalation_with_tech_issue(from_level, to_level, tech_issue)
+        else:
+            with create_case(
+                self.domain,
+                'tech_issue',
+                case_name='New Issue',
+                update={
+                    'ticket_level': from_level,
+                    'touch_case_date': '2017-06-01',
+                    'block_location_id': 'block_id',
+                    'district_location_id': 'district_id',
+                    'state_location_id': 'state_id',
+                },
+            ) as tech_issue:
+                return self._test_auto_escalation_with_tech_issue(from_level, to_level, tech_issue)
 
     def test_auto_escalation_to_block(self):
         self._test_auto_escalation('supervisor', 'block')
