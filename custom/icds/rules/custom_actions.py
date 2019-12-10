@@ -46,7 +46,7 @@ def _update_existing_tech_issue_delegate(tech_issue_delegate):
     )
 
 
-def _update_tech_issue_for_escalation(case, escalated_ticket_level):
+def _update_tech_issue_for_escalation(case, escalated_ticket_level, escalated_location_id):
     today = ServerTime(datetime.utcnow()).user_time(pytz.timezone('Asia/Kolkata')).done().date()
 
     return update_case(
@@ -59,15 +59,16 @@ def _update_tech_issue_for_escalation(case, escalated_ticket_level):
         },
         close=False,
         xmlns=AUTO_UPDATE_XMLNS,
+        owner_id=escalated_location_id,
         device_id=__name__ + "._update_tech_issue_for_escalation",
     )
 
 
-def _get_escalated_tech_issue_delegate(tech_issue, escalated_location_id):
+def _get_escalated_tech_issue_delegate(tech_issue, ticket_level):
     for subcase in tech_issue.get_subcases(index_identifier='parent'):
         if (
             subcase.type == 'tech_issue_delegate' and
-            subcase.owner_id == escalated_location_id and
+            subcase.owner_id == ticket_level and
             not subcase.closed
         ):
             return subcase
@@ -85,6 +86,12 @@ def escalate_tech_issue(case, rule):
         'district': 'state',
     }
 
+    current_location_id_map = {
+        'supervisor': case.get_case_property('supervisor_location_id'),
+        'block': case.get_case_property('block_location_id'),
+        'district': case.get_case_property('district_location_id'),
+    }
+
     escalated_location_id_map = {
         'supervisor': case.get_case_property('block_location_id'),
         'block': case.get_case_property('district_location_id'),
@@ -93,17 +100,18 @@ def escalate_tech_issue(case, rule):
 
     current_ticket_level = case.get_case_property('ticket_level')
     escalated_ticket_level = escalated_ticket_level_map.get(current_ticket_level)
+    current_location_id = current_location_id_map.get(current_ticket_level)
     escalated_location_id = escalated_location_id_map.get(current_ticket_level)
 
     if not escalated_ticket_level or not escalated_location_id:
         return CaseRuleActionResult()
 
-    update_result = _update_tech_issue_for_escalation(case, escalated_ticket_level)
+    update_result = _update_tech_issue_for_escalation(case, escalated_ticket_level, escalated_location_id)
     rule.log_submission(update_result[0].form_id)
 
     num_creates = 0
     num_related_updates = 0
-    tech_issue_delegate = _get_escalated_tech_issue_delegate(case, escalated_location_id)
+    tech_issue_delegate = _get_escalated_tech_issue_delegate(case, current_location_id)
 
     if tech_issue_delegate:
         delegate_update_result = _update_existing_tech_issue_delegate(tech_issue_delegate)
