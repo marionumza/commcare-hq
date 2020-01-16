@@ -101,7 +101,8 @@ from custom.icds_reports.models.aggregate import (
     AggregateTHRForm,
     DailyAttendance,
     DashboardUserActivityReport,
-    AggregateAdolescentGirlsRegistrationForms
+    AggregateAdolescentGirlsRegistrationForms,
+    AggregateMigrationForms,
 )
 from custom.icds_reports.models.helper import IcdsFile
 from custom.icds_reports.models.util import UcrReconciliationStatus
@@ -275,6 +276,12 @@ def move_ucr_data_into_aggregation_tables(date=None, intervals=2):
             stage_1_tasks.extend([
                 icds_state_aggregation_task.si(state_id=state_id, date=monthly_date,
                                                func_name='_agg_adolescent_girls_registration_table')
+                for state_id in state_ids
+            ])
+
+            stage_1_tasks.extend([
+                icds_state_aggregation_task.si(state_id=state_id, date=monthly_date,
+                                               func_name='_agg_migration_table')
                 for state_id in state_ids
             ])
 
@@ -691,6 +698,13 @@ def _agg_adolescent_girls_registration_table(state_id, day):
     db_alias = router.db_for_write(AggregateAdolescentGirlsRegistrationForms)
     with transaction.atomic(using=db_alias):
         AggregateAdolescentGirlsRegistrationForms.aggregate(state_id, force_to_date(day))
+
+
+@track_time
+def _agg_migration_table(state_id, day):
+    db_alias = router.db_for_write(AggregateMigrationForms)
+    with transaction.atomic(using=db_alias):
+        AggregateMigrationForms.aggregate(state_id, force_to_date(day))
 
 
 @task(serializer='pickle', queue='icds_aggregation_queue')
