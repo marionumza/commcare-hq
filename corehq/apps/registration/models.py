@@ -8,8 +8,29 @@ from dimagi.ext.couchdbkit import (
     Document,
     StringProperty,
 )
+from django.db import models
 
 from corehq.apps.domain.models import Domain
+
+
+class SQLRegistrationRequest(models.Model):
+    tos_confirmed = models.BooleanField(default=False)
+    request_time = models.DateTimeField()
+    request_ip = models.CharField(max_length=31)
+    activation_guid = models.CharField(max_length=126)
+    confirm_time = models.DateTimeField(null=True)
+    confirm_ip = models.CharField(max_length=31, null=True)
+    domain = models.CharField(max_length=255, null=True)
+    new_user_username = models.CharField(max_length=255, null=True)
+    requesting_user_username = models.CharField(max_length=255, null=True)
+
+    class Meta:
+        db_table = "registrationrequest"
+
+    @property
+    @memoized
+    def project(self):
+        return Domain.get_by_name(self.domain)
 
 
 class RegistrationRequest(Document):
