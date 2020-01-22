@@ -32,23 +32,6 @@ class SQLRegistrationRequest(models.Model):
     def project(self):
         return Domain.get_by_name(self.domain)
 
-
-class RegistrationRequest(Document):
-    tos_confirmed = BooleanProperty(default=False)
-    request_time = DateTimeProperty()
-    request_ip = StringProperty()
-    activation_guid = StringProperty()
-    confirm_time = DateTimeProperty()
-    confirm_ip = StringProperty()
-    domain = StringProperty()
-    new_user_username = StringProperty()
-    requesting_user_username = StringProperty()
-
-    @property
-    @memoized
-    def project(self):
-        return Domain.get_by_name(self.domain)
-
     @classmethod
     def get_by_guid(cls, guid):
         return SQLRegistrationRequest.objects.filter(activation_guid=guid).first()
@@ -78,22 +61,3 @@ class RegistrationRequest(Document):
     @classmethod
     def get_request_for_username(cls, username):
         return SQLRegistrationRequest.objects.filter(new_user_username=username).first()
-
-    def save(self, *args, **kwargs):
-        # Save to SQL
-        model, created = SQLRegistrationRequest.objects.update_or_create(
-            activation_guid=self.activation_guid,
-            defaults={
-                "tos_confirmed": self.tos_confirmed,
-                "request_time": self.request_time,
-                "request_ip": self.request_ip,
-                "confirm_time": self.confirm_time,
-                "confirm_ip": self.confirm_ip,
-                "domain": self.domain,
-                "new_user_username": self.new_user_username,
-                "requesting_user_username": self.requesting_user_username,
-            }
-        )
-
-        # Save to couch
-        super().save(*args, **kwargs)
